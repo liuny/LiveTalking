@@ -143,7 +143,18 @@ class LipReal(BaseAvatar):
         bbox = self.coord_list_cycle[idx]
         combine_frame = copy.deepcopy(self.frame_list_cycle[idx])
         y1, y2, x1, x2 = bbox
-        res_frame = cv2.resize(pred_frame.astype(np.uint8),(x2-x1,y2-y1))
+        # Liuny修改start------------------------【使用视频制作自定义数字人形象模糊】
+        target_w, target_h = x2 - x1, y2 - y1
+        # 智能选择插值方法
+        h, w = pred_frame.shape[:2]
+        if h < target_h or w < target_w:
+            interpolation = cv2.INTER_LANCZOS4  # 放大
+        else:
+            interpolation = cv2.INTER_AREA      # 缩小
+        res_frame = cv2.resize(pred_frame.astype(np.uint8), (target_w, target_h), interpolation=interpolation)
+        # Liuny修改原来的------------------------
+        #res_frame = cv2.resize(pred_frame.astype(np.uint8),(x2-x1,y2-y1))
+        # Liuny修改end------------------------
         combine_frame[y1:y2, x1:x2] = res_frame
         return combine_frame
 

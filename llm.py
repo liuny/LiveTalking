@@ -11,7 +11,7 @@ def llm_response(message,avatar_session:'BaseAvatar',datainfo:dict={}):
         start = time.perf_counter()
         from openai import OpenAI
         client = OpenAI(
-            # 如果您没有配置环境变量，请在此处用您的API Key进行替换
+            # 如果您没有配置环境变量，请在此处用您的API Key进行替换 liuny test
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             # 填写DashScope SDK的base_url
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",

@@ -20,3 +20,5 @@ models/
 *.log
 dist
 .claude/
+
+.venv

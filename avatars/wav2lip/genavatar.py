@@ -117,7 +117,18 @@ if __name__ == "__main__":
     idx = 0
     for frame,coords in face_det_results:        
         #x1, y1, x2, y2 = bbox
-        resized_crop_frame = cv2.resize(frame,(args.img_size, args.img_size)) #,interpolation = cv2.INTER_LANCZOS4)
+        # Liuny修改start------------------------【使用视频制作自定义数字人形象模糊】
+        h, w = frame.shape[:2]
+        target_size = args.img_size
+        # 智能选择插值方法：放大用 LANCZOS4，缩小用 AREA
+        if h < target_size or w < target_size:
+            interpolation = cv2.INTER_LANCZOS4  # 放大时更清晰
+        else:
+            interpolation = cv2.INTER_AREA      # 缩小时抗锯齿更好
+        resized_crop_frame = cv2.resize(frame, (target_size, target_size), interpolation=interpolation)
+        # Liuny修改原来的------------------------
+        #resized_crop_frame = cv2.resize(frame,(args.img_size, args.img_size)) #,interpolation = cv2.INTER_LANCZOS4)
+        # Liuny修改end------------------------
         cv2.imwrite(f"{face_imgs_path}/{idx:08d}.png", resized_crop_frame)
         coord_list.append(coords)
         idx = idx + 1

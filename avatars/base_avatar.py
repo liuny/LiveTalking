@@ -115,7 +115,13 @@ class BaseAvatar:
         if opt.transport in _output_modules:
             try:
                 importlib.import_module(_output_modules[opt.transport])
-                self.output = registry.create("streamout", opt.transport, opt=opt, parent=self)
+                # Liuny修改start------------------------【使用WebRTC->SRS遇到的问题更改】
+                # rtcpush 使用 webrtc 插件                                                                        
+                streamout_name = 'webrtc' if opt.transport == 'rtcpush' else opt.transport
+                self.output = registry.create("streamout", streamout_name, opt=opt, parent=self)
+                # Liuny修改原来的------------------------
+                #self.output = registry.create("streamout", opt.transport, opt=opt, parent=self)
+                # Liuny修改end------------------------
             except ModuleNotFoundError:
                 logger.error(f"Output transport module {_output_modules[opt.transport]} not found.")
         else:

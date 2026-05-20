@@ -60,11 +60,17 @@ async def human(request):
         if params['type'] == 'echo':
             avatar_session.put_msg_txt(params['text'], datainfo)
         elif params['type'] == 'chat':
-            llm_response = request.app.get("llm_response")
-            if llm_response:
-                asyncio.get_event_loop().run_in_executor(
-                    None, llm_response, params['text'], avatar_session, datainfo
-                )
+            # custom_llm_tts 模式：直接将用户消息发给 TTS，绕过 LiveTalking 的 LLM
+            if hasattr(avatar_session, 'opt') and avatar_session.opt.tts == 'custom_llm_tts':
+                logger.info(f"custom_llm_tts 模式: 直接发送用户消息 '{params['text']}'")
+                avatar_session.put_msg_txt(params['text'], datainfo)
+            else:
+                # 其他 TTS 模式：使用 LiveTalking 的 LLM 处理
+                llm_response = request.app.get("llm_response")
+                if llm_response:
+                    asyncio.get_event_loop().run_in_executor(
+                        None, llm_response, params['text'], avatar_session, datainfo
+                    )
 
         return json_ok()
     except Exception as e:

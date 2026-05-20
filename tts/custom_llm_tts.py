@@ -56,15 +56,8 @@ class CustomLLMTTS(BaseTTS):
                 "voice_config": self.voice_config
             }
 
-            logger.debug(f"请求 URL: {url}")
-            logger.debug(f"请求头: {headers}")
-            logger.debug(f"请求体: {body}")
-
             # 流式请求
             response = requests.post(url, json=body, headers=headers, stream=True, timeout=60)
-
-            logger.debug(f"响应状态码: {response.status_code}")
-            logger.debug(f"响应头: {dict(response.headers)}")
 
             if response.status_code != 200:
                 logger.error(f"接口返回错误: {response.status_code} - {response.text}")
@@ -80,9 +73,7 @@ class CustomLLMTTS(BaseTTS):
                 if not chunk:
                     continue
 
-                chunk_str = chunk.decode('utf-8')
-                logger.debug(f"收到 chunk: {chunk_str[:200]}...")
-                buffer += chunk_str
+                buffer += chunk.decode('utf-8')
 
                 # 按换行分割 JSON
                 while '\n' in buffer:
@@ -90,27 +81,21 @@ class CustomLLMTTS(BaseTTS):
                     if not line.strip():
                         continue
 
-                    logger.debug(f"解析行: {line[:200]}")
-
                     try:
                         data = json.loads(line)
                         msg_type = data.get("type")
-                        logger.debug(f"消息类型: {msg_type}")
 
                         if msg_type == "audio_chunk":
                             chunk_count += 1
                             # base64 解码
                             audio_base64 = data.get("audio_data")
-                            logger.debug(f"audio_data 长度: {len(audio_base64) if audio_base64 else 0}")
                             if audio_base64:
                                 audio_bytes = base64.b64decode(audio_base64)
-                                logger.debug(f"解码后字节长度: {len(audio_bytes)}")
 
                                 # PCM Int16 → Float32
                                 audio_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
                                 audio_float32 = audio_int16.astype(np.float32) / 32768.0
                                 audio_segments.append(audio_float32)
-                                logger.debug(f"音频段 {chunk_count}: {len(audio_float32)} 采样点")
 
                         elif msg_type == "stream_end":
                             reply_text = data.get("text")
@@ -123,16 +108,13 @@ class CustomLLMTTS(BaseTTS):
                             logger.error(f"接口返回错误: {error_msg}")
                             return
 
-                        else:
-                            logger.warning(f"未知消息类型: {msg_type}, 数据: {data}")
-
                     except json.JSONDecodeError as e:
-                        logger.warning(f"JSON 解析失败: {line[:100]} - {e}")
+                        logger.warning(f"JSON 解析失败: {line[:100]}")
                         continue
 
             # 合并音频段
             if not audio_segments:
-                logger.warning(f"未收到音频数据, buffer 剩余: {buffer[:200]}")
+                logger.warning(f"未收到音频数据")
                 return
 
             audio_array = np.concatenate(audio_segments)

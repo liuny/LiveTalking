@@ -95,7 +95,8 @@ class BaseAvatar:
             'doubao': 'tts.doubao',
             'indextts2': 'tts.indextts2',
             'azuretts': 'tts.azure',
-            'qwentts': 'tts.qwentts'
+            'qwentts': 'tts.qwentts',
+            'custom_llm_tts': 'tts.custom_llm_tts'
         }
 
         if opt.tts in _tts_modules:

@@ -44,11 +44,22 @@ def parse_args():
 
     # ─── TTS ───────────────────────────────────────────────────────────
     parser.add_argument('--tts', type=str, default='edgetts',
-                        help="tts plugin: edgetts/gpt-sovits/cosyvoice/fishtts/tencent/doubao/indextts2/azuretts/qwentts")
+                        help="tts plugin: edgetts/gpt-sovits/cosyvoice/fishtts/tencent/doubao/indextts2/azuretts/qwentts/custom_llm_tts")
     parser.add_argument('--REF_FILE', type=str, default="zh-CN-YunxiaNeural",
                         help="参考文件名或语音模型ID")
     parser.add_argument('--REF_TEXT', type=str, default=None)
-    parser.add_argument('--TTS_SERVER', type=str, default='http://127.0.0.1:9880')
+    parser.add_argument('--TTS_SERVER', type=str, default='http://192.168.4.250:9372',
+                        help="TTS server address")
+
+    # ─── 票据字段（运行时从请求头填充）──────────────────────────────
+    parser.add_argument('--uid', type=str, default='0',
+                        help='user id (from request header)')
+    parser.add_argument('--random', type=str, default='',
+                        help='random string (from request header)')
+    parser.add_argument('--expire', type=str, default='',
+                        help='expire time (from request header)')
+    parser.add_argument('--ticket', type=str, default='',
+                        help='auth ticket (from request header)')
 
     # ─── 传输 ─────────────────────────────────────────────────────────
     parser.add_argument('--transport', type=str, default='webrtc',

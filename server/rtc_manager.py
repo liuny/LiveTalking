@@ -50,6 +50,17 @@ class RTCManager:
                 text=json.dumps({"code": -1, "msg": "reach max session"}),
             )
 
+        # 从请求头提取票据信息（用于 custom_llm_tts）
+        headers = request.headers
+        ticket_info = {
+            'uid': headers.get('uid', '0'),
+            'random': headers.get('random', ''),
+            'expire': headers.get('expire', ''),
+            'ticket': headers.get('ticket', ''),
+        }
+        params.update(ticket_info)
+        logger.info(f"票据信息: uid={ticket_info['uid']}")
+
         #sessionid = _rand_session_id()
 
         # 通过 SessionManager 构建

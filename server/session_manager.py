@@ -3,14 +3,18 @@
 ###############################################################################
 
 import asyncio
-import uuid
 from typing import Dict, Optional
 from utils.logger import logger
 from avatars.base_avatar import BaseAvatar
 
+# 全局计数器
+_session_counter = 0
+
 def _rand_session_id() -> str:
-    """生成 UUID session ID"""
-    return str(uuid.uuid4())
+    """生成唯一 session ID（计数器）"""
+    global _session_counter
+    _session_counter += 1
+    return str(_session_counter)
 
 class SessionManager:
     """

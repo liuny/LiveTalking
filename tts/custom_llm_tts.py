@@ -153,16 +153,14 @@ class CustomLLMTTS(BaseTTS):
         """分 chunk 推送音频给数字人"""
         chunk_size = self.chunk  # 320 samples (20ms)
         idx = 0
-        first = True
         streamlen = len(audio_array)
 
-        while streamlen - idx >= chunk_size and self.state == State.RUNNING:
+        while streamlen >= chunk_size and self.state == State.RUNNING:
             eventpoint = {}
             streamlen -= chunk_size
 
-            if first:
+            if idx == 0:
                 eventpoint = {'status': 'start', 'text': text}
-                first = False
             elif streamlen < chunk_size:
                 eventpoint = {'status': 'end', 'text': text}
 

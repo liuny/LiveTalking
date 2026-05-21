@@ -156,6 +156,50 @@ async def is_speaking(request):
     return json_ok(data=avatar_session.is_speaking())
 
 
+async def websocket_text(request):
+    """WebSocket 路由：推送数字人文字回复"""
+    sessionid = request.match_info.get('sessionid', '')
+    avatar_session = get_session(request, sessionid)
+    if avatar_session is None:
+        return json_error("session not found")
+
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    # 保存 websocket 连接到 session
+    avatar_session.websocket = ws
+    logger.info(f"WebSocket connected for session {sessionid}")
+
+    try:
+        while True:
+            # 非阻塞检查队列
+            try:
+                msg = avatar_session.text_queue.get_nowait()
+                await ws.send_json(msg)
+            except:
+                pass
+
+            # 接收客户端消息（如心跳或控制指令）
+            msg = await ws.receive()
+            if msg.type == web.WSMsgType.CLOSE:
+                logger.info(f"WebSocket closed by client")
+                break
+            elif msg.type == web.WSMsgType.ERROR:
+                logger.warning(f"WebSocket error: {ws.exception()}")
+                break
+
+            # 等待一小段时间再继续循环
+            await asyncio.sleep(0.1)
+
+    except Exception as e:
+        logger.info(f"WebSocket exception: {e}")
+    finally:
+        avatar_session.websocket = None
+        await ws.close()
+
+    return ws
+
+
 # ─── 路由注册 ──────────────────────────────────────────────────────────────
 
 def setup_routes(app):
@@ -166,4 +210,5 @@ def setup_routes(app):
     app.router.add_post("/record", record)
     app.router.add_post("/interrupt_talk", interrupt_talk)
     app.router.add_post("/is_speaking", is_speaking)
+    app.router.add_get("/ws/text/{sessionid}", websocket_text)
     app.router.add_static('/', path='web')

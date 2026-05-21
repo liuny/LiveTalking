@@ -85,6 +85,11 @@ class BaseAvatar:
         self.res_frame_queue = Queue(self.batch_size*2)
         self.render_event = Event()
 
+        # WebSocket 连接 (用于推送文字回复)
+        self.websocket = None
+        # 文字消息队列 (WebSocket 路由此队列读取并发送)
+        self.text_queue = Queue(maxsize=10)
+
         _tts_modules = {
             'edgetts': 'tts.edge',
             'gpt-sovits': 'tts.sovits',
@@ -221,9 +226,20 @@ class BaseAvatar:
         for key in self.custom_index:
             self.custom_index[key] = 0
 
-    def notify(self, eventpoint:dict):
+    def notify(self, eventpoint: dict):
         if eventpoint and eventpoint.get('status'):
-            logger.info("notify:%s", eventpoint)
+            logger.info("notify: %s", eventpoint)
+
+            # 推送文字回复到队列 (用于 WebSocket)
+            # 只在 status='start' 时推送，避免重复 (TTS 在 start/end 都发送相同 text)
+            if eventpoint.get('text') and eventpoint.get('status') == 'start':
+                try:
+                    self.text_queue.put_nowait({
+                        'type': 'text_reply',
+                        'text': eventpoint.get('text')
+                    })
+                except queue.Full:
+                    logger.warning("text_queue full, drop message")
 
     def start_recording(self):
         if self.recording:

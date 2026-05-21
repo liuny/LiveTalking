@@ -455,15 +455,54 @@
                 const messagesContainer = $('#chat-messages');
                 const messageClass = type === 'user' ? 'user-message' : 'system-message';
                 const sender = type === 'user' ? '您' : '数字人';
-                
+
                 const messageElement = $(`
                     <div class="asr-text ${messageClass}">
                         ${sender}: ${message}
                     </div>
                 `);
-                
+
                 messagesContainer.append(messageElement);
                 messagesContainer.scrollTop(messagesContainer[0].scrollHeight);
+            }
+
+            // WebSocket 连接：接收数字人文字回复
+            let textWebSocket = null;
+            function startTextWebSocket(sessionid) {
+                const wsUrl = `ws://${window.location.host}/ws/text/${sessionid}`;
+                textWebSocket = new WebSocket(wsUrl);
+
+                textWebSocket.onopen = function() {
+                    console.log('WebSocket connected');
+                };
+
+                textWebSocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'text_reply' && data.text) {
+                            console.log('Avatar text:', data.text);
+                            addChatMessage(data.text, 'system');
+                        }
+                    } catch (e) {
+                        console.warn('WebSocket parse error:', e);
+                    }
+                };
+
+                textWebSocket.onclose = function() {
+                    console.log('WebSocket closed');
+                    textWebSocket = null;
+                };
+
+                textWebSocket.onerror = function(e) {
+                    console.log('WebSocket error:', e);
+                };
+            }
+
+            function stopTextWebSocket() {
+                if (textWebSocket) {
+                    textWebSocket.close();
+                    textWebSocket = null;
+                }
             }
 
             // 开始/停止按钮
@@ -472,7 +511,7 @@
                 start();
                 $(this).hide();
                 $('#stop').show();
-                
+
                 // 添加定时器检查视频流是否已加载
                 let connectionCheckTimer = setInterval(function() {
                     const video = document.getElementById('video');
@@ -480,9 +519,14 @@
                     if (video.readyState >= 3 && video.videoWidth > 0) {
                         updateConnectionStatus('connected');
                         clearInterval(connectionCheckTimer);
+                        // 启动 WebSocket 接收文字回复
+                        const sessionid = document.getElementById('sessionid').value;
+                        if (sessionid) {
+                            startTextWebSocket(sessionid);
+                        }
                     }
                 }, 2000); // 每2秒检查一次
-                
+
                 // 60秒后如果还是连接中状态，就停止检查
                 setTimeout(function() {
                     if (connectionCheckTimer) {
@@ -493,6 +537,7 @@
 
             $('#stop').click(function() {
                 stop();
+                stopTextWebSocket();
                 $(this).hide();
                 $('#start').show();
                 updateConnectionStatus('disconnected');

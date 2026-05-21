@@ -121,8 +121,8 @@ class CustomLLMTTS(BaseTTS):
             logger.info(f"音频合并完成: {audio_array.shape[0]} 采样点, "
                        f"时长: {audio_array.shape[0]/self.sample_rate:.2f}s")
 
-            # 分 chunk 推送
-            self._push_audio_chunks(audio_array, text, textevent)
+            # 分 chunk 推送（使用 reply_text 作为数字人回复）
+            self._push_audio_chunks(audio_array, reply_text or text, textevent)
 
             logger.info(f"-------custom_llm_tts time: {time.time()-t:.4f}s")
 

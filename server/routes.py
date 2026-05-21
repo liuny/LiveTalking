@@ -170,16 +170,20 @@ async def websocket_text(request):
     avatar_session.websocket = ws
     logger.info(f"WebSocket connected for session {sessionid}")
 
-    try:
-        while True:
-            # 非阻塞检查队列
+    async def send_task():
+        """发送任务：不断检查队列并发送"""
+        while not ws.closed:
             try:
                 msg = avatar_session.text_queue.get_nowait()
                 await ws.send_json(msg)
+                logger.info(f"WebSocket sent: {msg}")
             except:
                 pass
+            await asyncio.sleep(0.1)
 
-            # 接收客户端消息（如心跳或控制指令）
+    async def receive_task():
+        """接收任务：等待客户端消息"""
+        while not ws.closed:
             msg = await ws.receive()
             if msg.type == web.WSMsgType.CLOSE:
                 logger.info(f"WebSocket closed by client")
@@ -188,9 +192,9 @@ async def websocket_text(request):
                 logger.warning(f"WebSocket error: {ws.exception()}")
                 break
 
-            # 等待一小段时间再继续循环
-            await asyncio.sleep(0.1)
-
+    try:
+        # 并行运行发送和接收任务
+        await asyncio.gather(send_task(), receive_task())
     except Exception as e:
         logger.info(f"WebSocket exception: {e}")
     finally:

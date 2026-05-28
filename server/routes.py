@@ -277,11 +277,15 @@ async def avatar_upload(request):
                         chunk = await field.read_chunk()
                         if not chunk:
                             break
+                        f.write(chunk)
                         size += len(chunk)
                         if size > MAX_VIDEO_SIZE:
                             f.close()
                             os.remove(video_path)
                             return json_error(f"视频大小超过 {MAX_VIDEO_SIZE // 1024 // 1024}MB")
+                    f.flush()  # 确保数据写入磁盘
+
+                logger.info(f"Video uploaded: {video_path}, size={size} bytes")
 
                 # 校验视频
                 valid, message = validate_uploaded_video(video_path)

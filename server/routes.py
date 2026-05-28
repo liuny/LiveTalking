@@ -326,6 +326,8 @@ def validate_uploaded_video(video_path: str) -> tuple:
     """
     import subprocess
 
+    logger.info(f"Validating video: {video_path}")
+
     # 1. 使用 ffprobe 检查视频完整性（比 OpenCV 更可靠）
     probe_result = subprocess.run([
         "ffprobe", "-v", "error", "-select_streams", "v:0",
@@ -334,12 +336,16 @@ def validate_uploaded_video(video_path: str) -> tuple:
     ], capture_output=True, text=True)
 
     if probe_result.returncode != 0:
-        return False, "视频文件损坏或格式不支持"
+        logger.error(f"ffprobe failed: {probe_result.stderr}")
+        return False, f"视频文件损坏或格式不支持: {probe_result.stderr.strip()}"
+
+    logger.info(f"ffprobe output: {probe_result.stdout}")
 
     try:
         import json
         probe_data = json.loads(probe_result.stdout)
         if not probe_data.get("streams"):
+            logger.error(f"No streams in video: {probe_data}")
             return False, "视频无有效流数据"
 
         stream = probe_data["streams"][0]
@@ -348,6 +354,7 @@ def validate_uploaded_video(video_path: str) -> tuple:
         duration = float(stream.get("duration", 0))
 
     except Exception as e:
+        logger.error(f"Parse video info failed: {e}")
         return False, f"解析视频信息失败: {e}"
 
     # 2. 校验时长

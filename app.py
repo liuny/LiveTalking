@@ -24,6 +24,7 @@ import json
 #from gevent import pywsgi
 #from geventwebsocket.handler import WebSocketHandler
 import re
+import os
 import numpy as np
 from threading import Thread,Event
 #import multiprocessing
@@ -75,14 +76,23 @@ def build_avatar_session(sessionid:str, params:dict)->BaseAvatar:
     opt_this = copy.deepcopy(opt)
     opt_this.sessionid = sessionid
 
-    avatar_id = params.get('avatar',opt.avatar_id) 
+    avatar_id = params.get('avatar',opt.avatar_id)
     ref_audio = params.get('refaudio','') #音色
     ref_text = params.get('reftext','')
+
+    # Avatar fallback：请求的 avatar 不存在时使用默认形象
     if (avatar_id and avatar_id != opt.avatar_id):
-        # Avoid reloading if already cached globally
-        if avatar_id not in global_avatars:
-            global_avatars[avatar_id] = load_avatar(avatar_id)
-        avatar_this = global_avatars[avatar_id]
+        # 检查 avatar 是否存在
+        coords_path = f"./data/avatars/{avatar_id}/coords.pkl"
+        if os.path.exists(coords_path):
+            # 用户自定义形象存在
+            if avatar_id not in global_avatars:
+                global_avatars[avatar_id] = load_avatar(avatar_id)
+            avatar_this = global_avatars[avatar_id]
+        else:
+            # avatar 不存在，fallback 到默认形象
+            logger.info(f"Avatar {avatar_id} not found, fallback to default {opt.avatar_id}")
+            avatar_this = global_avatars.get(opt.avatar_id)
     else:
         # Default avatar loaded at startup
         avatar_this = global_avatars.get(opt.avatar_id)
@@ -140,7 +150,11 @@ def main():
     session_manager.init_builder(build_avatar_session)
     rtc_manager = RTCManager(opt)
     # share avatar_sessions (RTCManager handles it but routes.py expects it)
-    
+
+    # 启动 avatar 生成队列处理器
+    from server.avatar_worker import start_avatar_worker
+    start_avatar_worker()
+
     if opt.transport=='virtualcam' or opt.transport=='rtmp':
         thread_quit = Event()
         params = {}

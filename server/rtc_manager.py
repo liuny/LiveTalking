@@ -16,6 +16,34 @@ from aiortc.rtcrtpsender import RTCRtpSender
 from utils.logger import logger
 
 
+def parse_ticket_from_auth_header(headers) -> dict:
+    """
+    从 Authorization header 解析票据信息
+
+    格式: "uid=xxx,random=xxx,expire=xxx,ticket=xxx"
+    """
+    auth_header = headers.get('Authorization', '')
+
+    if auth_header:
+        parts = auth_header.split(',')
+        result = {}
+        for part in parts:
+            if '=' in part:
+                key, value = part.split('=', 1)
+                result[key.strip()] = value.strip()
+
+        if 'uid' in result:
+            return result
+
+    # 无票据时返回默认值
+    return {
+        'uid': '0',
+        'random': '',
+        'expire': '',
+        'ticket': '',
+    }
+
+
 # def _rand_session_id(n: int = 6) -> int:
 #     """生成 N 位随机 session ID"""
 #     return random.randint(10 ** (n - 1), 10 ** n - 1)
@@ -50,14 +78,8 @@ class RTCManager:
                 text=json.dumps({"code": -1, "msg": "reach max session"}),
             )
 
-        # 从请求头提取票据信息（用于 custom_llm_tts）
-        headers = request.headers
-        ticket_info = {
-            'uid': headers.get('uid', '0'),
-            'random': headers.get('random', ''),
-            'expire': headers.get('expire', ''),
-            'ticket': headers.get('ticket', ''),
-        }
+        # 从 Authorization header 提取票据信息
+        ticket_info = parse_ticket_from_auth_header(request.headers)
         params.update(ticket_info)
         logger.info(f"票据信息: uid={ticket_info['uid']}")
 

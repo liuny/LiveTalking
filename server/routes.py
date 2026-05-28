@@ -5,7 +5,10 @@
 import json
 import numpy as np
 import asyncio
+import os
+import cv2
 from aiohttp import web
+from datetime import datetime
 
 from utils.logger import logger
 
@@ -216,3 +219,197 @@ def setup_routes(app):
     app.router.add_post("/is_speaking", is_speaking)
     app.router.add_get("/ws/text/{sessionid}", websocket_text)
     app.router.add_static('/', path='web')
+
+    # Avatar 自定义形象接口
+    app.router.add_post("/api/avatar/upload", avatar_upload)
+    app.router.add_get("/api/avatar/status", avatar_status)
+    app.router.add_get("/api/avatar/image/{avatar_id}", avatar_image)
+
+
+# ─── Avatar 自定义形象接口 ────────────────────────────────────────────────
+
+from server.task_manager import task_manager
+from server.rtc_manager import parse_ticket_from_auth_header
+
+TMP_DIR = "data/tmp"
+os.makedirs(TMP_DIR, exist_ok=True)
+
+# 视频校验配置
+MAX_VIDEO_SIZE = 50 * 1024 * 1024  # 50MB
+MIN_DURATION = 3   # 最短 3 秒
+MAX_DURATION = 15  # 最长 15 秒
+MIN_WIDTH = 1280   # 720p 宽度
+MIN_HEIGHT = 720   # 720p 高度
+
+
+async def avatar_upload(request):
+    """
+    上传视频接口
+
+    从请求头获取 uid 作为 user_id
+    校验视频格式、时长、大小、分辨率
+    创建任务，返回 task_id
+    """
+    try:
+        # 从 Authorization header 获取用户信息
+        ticket_info = parse_ticket_from_auth_header(request.headers)
+        user_id = int(ticket_info.get('uid', '0'))
+        if user_id == 0:
+            return json_error("缺少用户认证信息")
+
+        # 获取上传文件
+        reader = await request.multipart()
+        video_path = None
+
+        async for field in reader:
+            if field.name == 'file':
+                # 检查文件格式
+                filename = field.filename
+                if not filename.lower().endswith('.mp4'):
+                    return json_error("视频格式必须为 mp4")
+
+                # 保存临时文件
+                task_id_temp = datetime.now().strftime("%Y%m%d%H%M%S")
+                video_path = os.path.join(TMP_DIR, f"{task_id_temp}_{user_id}.mp4")
+
+                size = 0
+                with open(video_path, 'wb') as f:
+                    while True:
+                        chunk = await field.read_chunk()
+                        if not chunk:
+                            break
+                        size += len(chunk)
+                        if size > MAX_VIDEO_SIZE:
+                            f.close()
+                            os.remove(video_path)
+                            return json_error(f"视频大小超过 {MAX_VIDEO_SIZE // 1024 // 1024}MB")
+
+                # 校验视频
+                valid, message = validate_uploaded_video(video_path)
+                if not valid:
+                    os.remove(video_path)
+                    return json_error(message)
+
+                # 检查用户是否有活跃任务
+                active_task = task_manager.get_user_active_task(user_id)
+                if active_task:
+                    if active_task["status"] == "pending":
+                        return json_error("已有任务在排队中，请等待完成后再上传")
+                    elif active_task["status"] == "processing":
+                        return json_error("已有任务正在生成，请等待完成后再上传")
+
+                # 创建任务
+                task = task_manager.create_task(user_id, video_path)
+
+                return json_ok({
+                    "task_id": task["task_id"],
+                    "avatar_id": task["avatar_id"]
+                })
+
+        return json_error("未找到上传文件")
+
+    except Exception as e:
+        logger.exception('avatar_upload exception:')
+        return json_error(str(e))
+
+
+def validate_uploaded_video(video_path: str) -> tuple:
+    """
+    校验上传视频
+
+    检查时长、分辨率
+
+    Args:
+        video_path: 视频路径
+
+    Returns:
+        (valid, message): 是否有效，以及错误信息
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return False, "视频文件无法打开"
+
+    # 获取视频信息
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+
+    # 计算时长
+    if fps > 0:
+        duration = frame_count / fps
+    else:
+        return False, "无法获取视频帧率"
+
+    # 校验时长
+    if duration < MIN_DURATION:
+        return False, f"视频时长 {duration:.1f} 秒，需要至少 {MIN_DURATION} 秒"
+    if duration > MAX_DURATION:
+        return False, f"视频时长 {duration:.1f} 秒，最长 {MAX_DURATION} 秒"
+
+    # 校验分辨率（720p：宽>=1280 或 高>=720）
+    if width < MIN_WIDTH and height < MIN_HEIGHT:
+        return False, f"视频分辨率过低（{width}x{height}），请上传 720p 及以上视频"
+
+    logger.info(f"Video validated: {width}x{height}, {duration:.1f}s")
+    return True, "success"
+
+
+async def avatar_status(request):
+    """
+    查询任务状态接口
+
+    返回 status + avatar_preview_url（成功时）
+    """
+    try:
+        task_id = request.query.get('task_id', '')
+        if not task_id:
+            return json_error("缺少 task_id 参数")
+
+        task = task_manager.get_task(task_id)
+        if task is None:
+            return json_error("任务不存在")
+
+        response = {"status": task["status"]}
+
+        if task["status"] == "success":
+            response["avatar_id"] = task["avatar_id"]
+            # 构造图片 URL
+            host = request.host
+            response["avatar_preview_url"] = f"http://{host}/api/avatar/image/{task['avatar_id']}"
+
+        elif task["status"] == "failed":
+            response["message"] = task.get("message", "生成失败")
+
+        return json_ok(response)
+
+    except Exception as e:
+        logger.exception('avatar_status exception:')
+        return json_error(str(e))
+
+
+async def avatar_image(request):
+    """
+    获取形象预览图片接口
+
+    返回首帧图片文件流（Content-Type: image/png）
+    """
+    try:
+        avatar_id = request.match_info.get('avatar_id', '')
+        img_path = f"./data/avatars/{avatar_id}/full_imgs/00000000.png"
+
+        if not os.path.exists(img_path):
+            return json_error("avatar 不存在")
+
+        with open(img_path, 'rb') as f:
+            img_data = f.read()
+
+        return web.Response(
+            content_type='image/png',
+            body=img_data
+        )
+
+    except Exception as e:
+        logger.exception('avatar_image exception:')
+        return json_error(str(e))

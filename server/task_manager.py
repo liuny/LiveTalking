@@ -136,6 +136,24 @@ class TaskManager:
         """
         return self.tasks.get(task_id)
 
+    def get_user_latest_task(self, user_id: int) -> Optional[dict]:
+        """
+        查询用户最近的任务（包括已完成的）
+
+        Args:
+            user_id: 用户ID
+
+        Returns:
+            task: 最近的任务，或 None
+        """
+        user_tasks = [t for t in self.tasks.values() if t["user_id"] == user_id]
+        if not user_tasks:
+            return None
+
+        # 按创建时间排序，返回最新的
+        user_tasks.sort(key=lambda t: t.get("created_at", ""), reverse=True)
+        return user_tasks[0]
+
     def get_next_task(self) -> Optional[dict]:
         """
         获取下一个待处理任务（含超时检查）

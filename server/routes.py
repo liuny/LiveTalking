@@ -360,16 +360,25 @@ async def avatar_status(request):
     """
     查询任务状态接口
 
+    使用 user_id 查询该用户的活跃任务
+
     返回 status + avatar_preview_url（成功时）
     """
     try:
-        task_id = request.query.get('task_id', '')
-        if not task_id:
-            return json_error("缺少 task_id 参数")
+        # 从 Authorization header 获取用户信息
+        ticket_info = parse_ticket_from_auth_header(request.headers)
+        user_id = int(ticket_info.get('uid', '0'))
+        if user_id == 0:
+            return json_error("缺少用户认证信息")
 
-        task = task_manager.get_task(task_id)
+        # 查询用户的活跃任务（包括成功/失败的最近任务）
+        task = task_manager.get_user_active_task(user_id)
         if task is None:
-            return json_error("任务不存在")
+            # 查询最近的已完成任务
+            task = task_manager.get_user_latest_task(user_id)
+
+        if task is None:
+            return json_ok({"status": "none", "message": "暂无任务"})
 
         response = {"status": task["status"]}
 
@@ -381,6 +390,9 @@ async def avatar_status(request):
 
         elif task["status"] == "failed":
             response["message"] = task.get("message", "生成失败")
+
+        elif task["status"] in ["pending", "processing"]:
+            response["task_id"] = task["task_id"]
 
         return json_ok(response)
 

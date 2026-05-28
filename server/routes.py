@@ -21,7 +21,7 @@ def json_ok(data=None):
         body["data"] = data
     return web.Response(
         content_type="application/json",
-        text=json.dumps(body),
+        text=json.dumps(body, ensure_ascii=False),
     )
 
 
@@ -29,7 +29,7 @@ def json_error(msg: str, code: int = -1):
     """返回错误 JSON 响应"""
     return web.Response(
         content_type="application/json",
-        text=json.dumps({"code": code, "msg": str(msg)}),
+        text=json.dumps({"code": code, "msg": str(msg)}, ensure_ascii=False),
     )
 
 

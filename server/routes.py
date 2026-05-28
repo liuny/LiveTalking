@@ -6,7 +6,6 @@ import json
 import numpy as np
 import asyncio
 import os
-import cv2
 from aiohttp import web
 from datetime import datetime
 
@@ -317,7 +316,7 @@ def validate_uploaded_video(video_path: str) -> tuple:
     """
     校验上传视频
 
-    检查时长、分辨率
+    使用 ffprobe 检查视频完整性，再检查时长、分辨率
 
     Args:
         video_path: 视频路径
@@ -325,30 +324,39 @@ def validate_uploaded_video(video_path: str) -> tuple:
     Returns:
         (valid, message): 是否有效，以及错误信息
     """
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        return False, "视频文件无法打开"
+    import subprocess
 
-    # 获取视频信息
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    cap.release()
+    # 1. 使用 ffprobe 检查视频完整性（比 OpenCV 更可靠）
+    probe_result = subprocess.run([
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height,duration",
+        "-of", "json", video_path
+    ], capture_output=True, text=True)
 
-    # 计算时长
-    if fps > 0:
-        duration = frame_count / fps
-    else:
-        return False, "无法获取视频帧率"
+    if probe_result.returncode != 0:
+        return False, "视频文件损坏或格式不支持"
 
-    # 校验时长
+    try:
+        import json
+        probe_data = json.loads(probe_result.stdout)
+        if not probe_data.get("streams"):
+            return False, "视频无有效流数据"
+
+        stream = probe_data["streams"][0]
+        width = int(stream.get("width", 0))
+        height = int(stream.get("height", 0))
+        duration = float(stream.get("duration", 0))
+
+    except Exception as e:
+        return False, f"解析视频信息失败: {e}"
+
+    # 2. 校验时长
     if duration < MIN_DURATION:
         return False, f"视频时长 {duration:.1f} 秒，需要至少 {MIN_DURATION} 秒"
     if duration > MAX_DURATION:
         return False, f"视频时长 {duration:.1f} 秒，最长 {MAX_DURATION} 秒"
 
-    # 校验分辨率（720p：宽>=1280 或 高>=720）
+    # 3. 校验分辨率（720p：宽>=1280 或 高>=720）
     if width < MIN_WIDTH and height < MIN_HEIGHT:
         return False, f"视频分辨率过低（{width}x{height}），请上传 720p 及以上视频"
 

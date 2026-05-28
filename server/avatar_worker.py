@@ -37,6 +37,10 @@ def avatar_worker():
         task = task_manager.get_next_task()
 
         if task is None:
+            # 调试：打印队列状态
+            queue_len = len(task_manager.queue)
+            if queue_len > 0:
+                logger.info(f"Queue has {queue_len} tasks but none returned")
             time.sleep(1)  # 无任务时休眠 1 秒
             continue
 

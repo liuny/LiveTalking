@@ -14,3 +14,10 @@ logger.addHandler(fhandler)
 # sformatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 # handler.setFormatter(sformatter)
 # logger.addHandler(handler)
+
+# 调试：启用控制台输出
+shandler = logging.StreamHandler()
+shandler.setLevel(logging.DEBUG)
+sformatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+shandler.setFormatter(sformatter)
+logger.addHandler(shandler)

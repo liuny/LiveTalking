@@ -38,6 +38,9 @@ class TaskManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._init()
+            logger.info(f"TaskManager singleton created: id={id(cls._instance)}")
+        else:
+            logger.info(f"TaskManager singleton reused: id={id(cls._instance)}")
         return cls._instance
 
     def _init(self):
@@ -176,23 +179,31 @@ class TaskManager:
         Returns:
             task: 待处理任务（status=processing），或 None
         """
+        # 调试：入口日志
+        logger.info(f"get_next_task called: queue_len={len(self.queue)}, current_task={self.current_task is not None}")
+
         with self.lock:
             # 1. 检查当前任务超时
             if self.current_task:
+                logger.info(f"Checking current_task timeout: task_id={self.current_task.get('task_id')}")
                 self._check_timeout(self.current_task)
                 if self.current_task["status"] == "failed":
                     self._save_tasks()
                     self.current_task = None
 
             # 2. 当前无执行任务时，取出队列头部
+            logger.info(f"After timeout check: current_task={self.current_task is not None}, queue_len={len(self.queue)}")
             if self.current_task is None and self.queue:
                 # 检查队列任务超时
                 while self.queue:
                     task_id = self.queue[0]
                     task = self.tasks.get(task_id)
 
+                    logger.info(f"Checking queue task: task_id={task_id}, task_exists={task is not None}, task_status={task.get('status') if task else 'N/A'}")
+
                     if task is None:
                         # 任务不存在，移除
+                        logger.warning(f"Task {task_id} not in tasks dict, removing from queue")
                         self.queue.pop(0)
                         continue
 
@@ -200,6 +211,7 @@ class TaskManager:
 
                     if task["status"] == "failed":
                         # 任务超时，移除并保存
+                        logger.info(f"Task {task_id} timeout/failed, removing from queue")
                         self.queue.pop(0)
                         self._save_tasks()
                         continue
@@ -213,6 +225,7 @@ class TaskManager:
                     logger.info(f"Task started processing: task_id={task_id}")
                     return task
 
+        logger.info(f"get_next_task returning None")
         return None
 
     def _check_timeout(self, task: dict):

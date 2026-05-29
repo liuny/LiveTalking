@@ -33,6 +33,9 @@ def avatar_worker():
     """
     logger.info("Avatar worker thread started")
 
+    # 调试：打印初始状态
+    logger.info(f"Worker initial state: queue_len={len(task_manager.queue)}, tasks={len(task_manager.tasks)}, current_task={task_manager.current_task}")
+
     while True:
         task = task_manager.get_next_task()
 

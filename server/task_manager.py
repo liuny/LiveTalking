@@ -38,9 +38,6 @@ class TaskManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._init()
-            logger.info(f"TaskManager singleton created: id={id(cls._instance)}")
-        else:
-            logger.info(f"TaskManager singleton reused: id={id(cls._instance)}")
         return cls._instance
 
     def _init(self):
@@ -169,57 +166,32 @@ class TaskManager:
         """
         获取下一个待处理任务（含超时检查）
 
-        流程：
-        1. 检查当前任务是否超时
-        2. 如果当前任务超时，标记为 failed
-        3. 从队列取出下一个 pending 任务
-        4. 检查队列任务是否超时
-        5. 返回有效任务或 None
-
         Returns:
             task: 待处理任务（status=processing），或 None
         """
-        # 调试：入口日志
-        logger.info(f"get_next_task called: queue_len={len(self.queue)}, current_task={self.current_task is not None}")
-
         with self.lock:
-            # 1. 检查当前任务超时
             if self.current_task:
-                logger.info(f"Checking current_task timeout: task_id={self.current_task.get('task_id')}")
                 self._check_timeout(self.current_task)
                 if self.current_task["status"] == "failed":
                     self._save_tasks()
                     self.current_task = None
 
-            # 2. 当前无执行任务时，取出队列头部
-            logger.info(f"After timeout check: current_task={self.current_task is not None}, queue_len={len(self.queue)}")
             if self.current_task is None and self.queue:
-                # 检查队列任务超时
                 while self.queue:
                     task_id = self.queue[0]
                     task = self.tasks.get(task_id)
 
-                    logger.info(f"Checking queue task: task_id={task_id}, task_exists={task is not None}, task_status={task.get('status') if task else 'N/A'}")
-
                     if task is None:
-                        # 任务不存在，移除
-                        logger.warning(f"Task {task_id} not in tasks dict, removing from queue")
                         self.queue.pop(0)
                         continue
 
                     self._check_timeout(task)
 
-                    logger.info(f"After _check_timeout: task_id={task_id}, status={task['status']}")
-
                     if task["status"] == "failed":
-                        # 任务超时，移除并保存
-                        logger.info(f"Task {task_id} timeout/failed, removing from queue")
                         self.queue.pop(0)
                         self._save_tasks()
                         continue
 
-                    logger.info(f"Task {task_id} is valid, starting processing...")
-                    # 取出有效任务
                     self.queue.pop(0)
                     task["status"] = "processing"
                     task["processing_start_time"] = datetime.now().isoformat()
@@ -228,7 +200,6 @@ class TaskManager:
                     logger.info(f"Task started processing: task_id={task_id}")
                     return task
 
-        logger.info(f"get_next_task returning None")
         return None
 
     def _check_timeout(self, task: dict):
@@ -238,35 +209,23 @@ class TaskManager:
         Args:
             task: 任务信息
         """
-        logger.info(f"_check_timeout called: task_id={task['task_id']}, status={task['status']}")
         now = datetime.now()
-        logger.info(f"now={now.isoformat()}")
 
-        # 处理超时
         if task["status"] == "processing":
-            logger.info(f"Checking processing timeout")
             if "processing_start_time" in task:
                 start = datetime.fromisoformat(task["processing_start_time"])
-                elapsed = (now - start).total_seconds()
-                logger.info(f"processing elapsed={elapsed}s, max={MAX_PROCESSING_TIME}s")
-                if elapsed > MAX_PROCESSING_TIME:
+                if (now - start).total_seconds() > MAX_PROCESSING_TIME:
                     task["status"] = "failed"
                     task["message"] = "生成超时，请重试"
                     logger.warning(f"Task processing timeout: task_id={task['task_id']}")
 
-        # 排队超时
         elif task["status"] == "pending":
-            logger.info(f"Checking pending timeout")
             if "created_at" in task:
                 created = datetime.fromisoformat(task["created_at"])
-                elapsed = (now - created).total_seconds()
-                logger.info(f"pending elapsed={elapsed}s, max={MAX_PENDING_TIME}s, created={created.isoformat()}")
-                if elapsed > MAX_PENDING_TIME:
+                if (now - created).total_seconds() > MAX_PENDING_TIME:
                     task["status"] = "failed"
                     task["message"] = "排队超时，请重试"
                     logger.warning(f"Task pending timeout: task_id={task['task_id']}")
-
-        logger.info(f"_check_timeout done: task_id={task['task_id']}, status={task['status']}")
 
     def update_status(self, task_id: str, status: str, **kwargs):
         """

@@ -235,25 +235,35 @@ class TaskManager:
         Args:
             task: 任务信息
         """
+        logger.info(f"_check_timeout called: task_id={task['task_id']}, status={task['status']}")
         now = datetime.now()
+        logger.info(f"now={now.isoformat()}")
 
         # 处理超时
         if task["status"] == "processing":
+            logger.info(f"Checking processing timeout")
             if "processing_start_time" in task:
                 start = datetime.fromisoformat(task["processing_start_time"])
-                if (now - start).total_seconds() > MAX_PROCESSING_TIME:
+                elapsed = (now - start).total_seconds()
+                logger.info(f"processing elapsed={elapsed}s, max={MAX_PROCESSING_TIME}s")
+                if elapsed > MAX_PROCESSING_TIME:
                     task["status"] = "failed"
                     task["message"] = "生成超时，请重试"
                     logger.warning(f"Task processing timeout: task_id={task['task_id']}")
 
         # 排队超时
         elif task["status"] == "pending":
+            logger.info(f"Checking pending timeout")
             if "created_at" in task:
                 created = datetime.fromisoformat(task["created_at"])
-                if (now - created).total_seconds() > MAX_PENDING_TIME:
+                elapsed = (now - created).total_seconds()
+                logger.info(f"pending elapsed={elapsed}s, max={MAX_PENDING_TIME}s, created={created.isoformat()}")
+                if elapsed > MAX_PENDING_TIME:
                     task["status"] = "failed"
                     task["message"] = "排队超时，请重试"
                     logger.warning(f"Task pending timeout: task_id={task['task_id']}")
+
+        logger.info(f"_check_timeout done: task_id={task['task_id']}, status={task['status']}")
 
     def update_status(self, task_id: str, status: str, **kwargs):
         """

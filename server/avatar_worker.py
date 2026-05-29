@@ -145,7 +145,8 @@ def generate_avatar(video_path: str, avatar_id: str):
         "python", "-m", "avatars.wav2lip.genavatar",
         "--video_path", video_path,
         "--avatar_id", avatar_id,
-        "--img_size", "256"
+        "--img_size", "256",
+        "--face_det_device", "cpu"
     ], capture_output=True, text=True)
 
     if result.returncode != 0:

@@ -19,6 +19,7 @@ parser.add_argument('--pads', nargs='+', type=int, default=[0, 10, 0, 0],
 					help='Padding (top, bottom, left, right). Please adjust to include chin at least')
 parser.add_argument('--face_det_batch_size', type=int, 
 					help='Batch size for face detection', default=16)
+parser.add_argument("--face_det_device", type=str, default="cpu", help="Device for face detection")
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -61,7 +62,7 @@ def get_smoothened_boxes(boxes, T):
 
 def face_detect(images):
 	detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D, 
-											flip_input=False, device=device)
+											flip_input=False, device=args.face_det_device)
 
 	batch_size = args.face_det_batch_size
 	

@@ -209,6 +209,8 @@ class TaskManager:
 
                     self._check_timeout(task)
 
+                    logger.info(f"After _check_timeout: task_id={task_id}, status={task['status']}")
+
                     if task["status"] == "failed":
                         # 任务超时，移除并保存
                         logger.info(f"Task {task_id} timeout/failed, removing from queue")
@@ -216,6 +218,7 @@ class TaskManager:
                         self._save_tasks()
                         continue
 
+                    logger.info(f"Task {task_id} is valid, starting processing...")
                     # 取出有效任务
                     self.queue.pop(0)
                     task["status"] = "processing"

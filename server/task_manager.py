@@ -61,6 +61,14 @@ class TaskManager:
                 with open(TASK_FILE) as f:
                     tasks = json.load(f)
                     for t in tasks:
+                        # 清理超时和失败的任务（不恢复）
+                        if t["status"] in ["pending", "processing"]:
+                            # 检查是否超时
+                            self._check_timeout(t)
+                            if t["status"] == "failed":
+                                logger.info(f"Cleaned up timeout task: {t['task_id']}")
+                                continue
+
                         self.tasks[t["task_id"]] = t
                         # 恢复 pending 任务到队列
                         if t["status"] == "pending":

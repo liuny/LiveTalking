@@ -47,7 +47,7 @@ class TaskManager:
         """初始化任务管理器"""
         self.tasks: dict = {}         # task_id -> task（内存缓存）
         self.queue: list = []         # pending 任务队列（task_id列表）
-        self.lock = threading.Lock()  # 线程锁
+        self.lock = threading.RLock()  # 可重入锁（避免嵌套调用死锁）
         self.current_task: Optional[dict] = None  # 当前执行的任务
 
         # 确保 data 目录存在

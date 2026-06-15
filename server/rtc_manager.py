@@ -91,10 +91,8 @@ class RTCManager:
         avatar_session = session_manager.get_session(sessionid)
 
         # 创建 PeerConnection
-        ice_server = RTCIceServer(urls='stun:stun.freeswitch.org:3478')
-        pc = RTCPeerConnection(
-            configuration=RTCConfiguration(iceServers=[ice_server])
-        )
+        # 通过 FRP 访问时不需要 STUN，只用 host 候选（端口已通过 patch 固定为 10001-10005）
+        pc = RTCPeerConnection()
         self.pcs.add(pc)
 
         @pc.on("connectionstatechange")

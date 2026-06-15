@@ -29,6 +29,21 @@ import numpy as np
 from threading import Thread,Event
 #import multiprocessing
 import torch.multiprocessing as mp
+import asyncio
+
+# Patch 1: 固定 UDP 端口为 10001-10005（与 FRP 透传端口一致）
+# 必须在 aiortc import 之前执行
+_orig_create = asyncio.BaseEventLoop.create_datagram_endpoint
+_next_port = [10001]
+
+async def _patched_create(self, protocol_factory, local_addr=None, **kwargs):
+    if local_addr and local_addr[1] == 0:
+        port = _next_port[0]
+        _next_port[0] = 10001 + ((_next_port[0] - 10001 + 1) % 5)
+        local_addr = (local_addr[0], port)
+    return await _orig_create(self, protocol_factory, local_addr=local_addr, **kwargs)
+
+asyncio.BaseEventLoop.create_datagram_endpoint = _patched_create
 
 from aiohttp import web
 import aiohttp
@@ -55,7 +70,6 @@ import copy
 import gc
 
 
-app = Flask(__name__)
 #sockets = Sockets(app)
 opt = None
 model = None
